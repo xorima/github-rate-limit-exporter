@@ -18,4 +18,4 @@ go run main.go
 
 ## Docker Image
 
-`docker pull ghcr.io/xorima/github-token-metrics:latest`
+`docker pull ghcr.io/xorima/github-token-metrics/github-token-metrics:latest`
