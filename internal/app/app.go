@@ -11,17 +11,20 @@ import (
 	"time"
 )
 
+const namespace, subSystem = "github", "rate_limit"
+
 type App struct {
 	log                 *slog.Logger
 	client              *github.Client
 	rateLimitGauge      *prometheus.GaugeVec
 	rateRemainingGauge  *prometheus.GaugeVec
 	rateResetGauge      *prometheus.GaugeVec
-	patTokenExpiryGauge *prometheus.GaugeVec
+	patTokenExpiryGauge prometheus.Gauge
+	lastRunTime         prometheus.Gauge
 }
 
 func NewApp(log *slog.Logger, githubToken string) *App {
-	rateLimitGauge, rateRemainingGauge, rateResetGauge, patTokenExpiryGauge := registerMetrics()
+	rateLimitGauge, rateRemainingGauge, rateResetGauge, patTokenExpiryGauge, lastRunTime := registerMetrics()
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: githubToken},
@@ -35,42 +38,48 @@ func NewApp(log *slog.Logger, githubToken string) *App {
 		rateRemainingGauge:  rateRemainingGauge,
 		rateResetGauge:      rateResetGauge,
 		patTokenExpiryGauge: patTokenExpiryGauge,
+		lastRunTime:         lastRunTime,
 	}
 }
 
-func registerMetrics() (*prometheus.GaugeVec, *prometheus.GaugeVec, *prometheus.GaugeVec, *prometheus.GaugeVec) {
+func registerMetrics() (*prometheus.GaugeVec, *prometheus.GaugeVec, *prometheus.GaugeVec, prometheus.Gauge, prometheus.Gauge) {
 
 	rateLimitGauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "github_rate_limit",
+			Name: prometheus.BuildFQName(namespace, subSystem, "limit"),
 			Help: "The limit for different types of GitHub API requests",
 		},
 		[]string{"resource"},
 	)
 	rateRemainingGauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "github_rate_remaining",
+			Name: prometheus.BuildFQName(namespace, subSystem, "remaining"),
 			Help: "The remaining rate for different types of GitHub API requests",
 		},
 		[]string{"resource"},
 	)
 	rateResetGauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "github_rate_reset",
+			Name: prometheus.BuildFQName(namespace, subSystem, "reset"),
 			Help: "The reset time for different types of GitHub API requests",
 		},
 		[]string{"resource"},
 	)
-	patTokenExpiryGauge := prometheus.NewGaugeVec(
+	patTokenExpiryGauge := prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "github_pat_token_expiry",
-			Help: "The expirty time for current token",
+			Name: prometheus.BuildFQName(namespace, subSystem, "pat_token_expiry"),
+			Help: "The expiry time for current token",
 		},
-		[]string{},
+	)
+	lastRunTime := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: prometheus.BuildFQName(namespace, subSystem, "last_run_time"),
+			Help: "The last time the batch process checked for metrics",
+		},
 	)
 
-	prometheus.MustRegister(rateLimitGauge, rateRemainingGauge, rateResetGauge, patTokenExpiryGauge)
-	return rateLimitGauge, rateRemainingGauge, rateResetGauge, patTokenExpiryGauge
+	prometheus.MustRegister(rateLimitGauge, rateRemainingGauge, rateResetGauge, patTokenExpiryGauge, lastRunTime)
+	return rateLimitGauge, rateRemainingGauge, rateResetGauge, patTokenExpiryGauge, lastRunTime
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -105,6 +114,7 @@ func (a *App) checkRateLimit(ctx context.Context) error {
 		a.log.Error("Failed to get rate limit", "error", err)
 		return err
 	}
+	a.lastRunTime.SetToCurrentTime()
 	a.setRateLimitMetrics(rl.GetCore(), "core")
 	a.setRateLimitMetrics(rl.GetSearch(), "search")
 	a.setRateLimitMetrics(rl.GetGraphQL(), "graphql")
@@ -123,7 +133,7 @@ func (a *App) checkRateLimit(ctx context.Context) error {
 			a.log.Error("Failed to parse token expiry", "error", err)
 			return err
 		}
-		a.patTokenExpiryGauge.WithLabelValues().Set(float64(expiry.Unix()))
+		a.patTokenExpiryGauge.Set(float64(expiry.UnixMilli()))
 	}
 	return nil
 }
@@ -134,5 +144,3 @@ func (a *App) setRateLimitMetrics(rate *github.Rate, name string) {
 	a.rateResetGauge.WithLabelValues(name).Set(float64(rate.Reset.Unix()))
 
 }
-
-// github-authentication-token-expiration header which brings back a date...
