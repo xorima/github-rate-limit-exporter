@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"github.com/google/go-github/v62/github"
+	"github.com/google/go-github/v71/github"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/oauth2"
 	"log/slog"

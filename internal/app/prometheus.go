@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/google/go-github/v62/github"
+	"github.com/google/go-github/v71/github"
 	"github.com/prometheus/client_golang/prometheus"
 	"time"
 )
