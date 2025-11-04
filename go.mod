@@ -1,11 +1,12 @@
 module github.com/xorima/github-token-metrics
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.2
 
 require (
 	github.com/google/go-github/v71 v71.0.0
+	github.com/google/go-github/v77 v77.0.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/oauth2 v0.29.0
