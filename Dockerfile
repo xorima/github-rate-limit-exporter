@@ -1,5 +1,5 @@
 # Dockerfile
-FROM golang:1.24-alpine as builder
+FROM golang:1.27-alpine as builder
 
 WORKDIR /app
 
